@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Home</string>
+    <string name="service_description">Opens this home screen when you press the Home button, instead of Amazon\'s home screen with ads.</string>
+    <string name="key_service_description">Catches the Home button so this home screen opens instantly, without Amazon\'s screen flashing first.</string>
+</resources>

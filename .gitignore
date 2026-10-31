@@ -1,0 +1,15 @@
+# Created on your PC when the script runs - keep private
+platform-tools/
+platform-tools.zip
+changes*.txt
+lastip.txt
+diagnostics.txt
+homebutton-log.txt
+
+# Home app build output and signing key
+home-app/build/
+home-app/res/drawable-*/
+home-app/*.apk
+home-app/*.idsig
+*.keystore
+*.jks
