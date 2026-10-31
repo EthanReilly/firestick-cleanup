@@ -40,7 +40,7 @@ It takes about a minute. Running it again is safe: it skips anything already don
 ### Home button notes
 
 - A real Fire TV remote's Home key goes through Fire OS. Fire OS blocks other apps from opening screens for about 5 seconds after Home is pressed, so the new Home screen can take a moment to appear.
-- [Fire Remote](https://github.com/EthanReilly/fire-remote), the companion phone app, opens the new Home screen directly instead, which avoids that delay.
+- [Fire Remote](https://github.com/EthanReilly/fire-remote), the companion phone app, asks the Home app to open directly (over your Wi-Fi, port 47100), which avoids that delay. If the Home app isn't installed, or its Home button setting is off, Fire Remote uses Amazon's Home instead.
 - **Test Home Button.bat** records what the Fire Stick does when Home is pressed, which helps with troubleshooting.
 
 ## Files

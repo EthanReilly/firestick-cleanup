@@ -6,6 +6,11 @@ import android.content.pm.ResolveInfo;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -19,8 +24,12 @@ public class HomeRedirectService extends AccessibilityService {
     private static final String AMAZON_LAUNCHER = "com.amazon.tv.launcher";
     private static final String AMAZON_HOME_STARTER = "com.amazon.firehomestarter";
 
+    /** Fire Remote (the phone app) connects here to open this Home screen directly. */
+    static final int REMOTE_PORT = 47100;
+
     private final Set<String> homeClasses = new HashSet<String>();
     private long lastRedirect;
+    private volatile ServerSocket server;
 
     @Override
     protected void onServiceConnected() {
@@ -36,6 +45,70 @@ public class HomeRedirectService extends AccessibilityService {
                 }
             }
         } catch (Exception ignored) {
+        }
+        startRemoteListener();
+    }
+
+    /**
+     * Tiny line-based listener for Fire Remote: "HOME" opens this Home screen and replies "OK".
+     * Opening a screen this way is instant, unlike pressing Fire OS's Home key, which shows
+     * Amazon's home and blocks other screens for 5 seconds. It only runs while this service is on,
+     * so turning the Home button off in Settings also makes Fire Remote use Amazon's Home.
+     */
+    private void startRemoteListener() {
+        if (server != null) return;
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ServerSocket ss = new ServerSocket(REMOTE_PORT);
+                    ss.setReuseAddress(true);
+                    server = ss;
+                    while (!ss.isClosed()) {
+                        final Socket s = ss.accept();
+                        handle(s);
+                    }
+                } catch (Exception ignored) {
+                    server = null;
+                }
+            }
+        }, "remote-listener");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void handle(Socket s) {
+        try {
+            s.setSoTimeout(2000);
+            BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+            String line = in.readLine();
+            OutputStream out = s.getOutputStream();
+            if (line != null && line.trim().equalsIgnoreCase("HOME")) {
+                lastRedirect = SystemClock.uptimeMillis();
+                Intent i = new Intent(this, HomeActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                startActivity(i);
+                out.write("OK\n".getBytes("UTF-8"));
+            } else if (line != null && line.trim().equalsIgnoreCase("PING")) {
+                out.write("FIREHOME\n".getBytes("UTF-8"));
+            } else {
+                out.write("?\n".getBytes("UTF-8"));
+            }
+            out.flush();
+        } catch (Exception ignored) {
+        } finally {
+            try { s.close(); } catch (Exception ignored) { }
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        ServerSocket ss = server;
+        server = null;
+        if (ss != null) {
+            try { ss.close(); } catch (Exception ignored) { }
         }
     }
 
