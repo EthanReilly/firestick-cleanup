@@ -123,7 +123,7 @@ public class HomeActivity extends Activity {
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(0, dp(34), 0, 0);
+        col.setPadding(0, dp(26), 0, 0);
         root.addView(col, new FrameLayout.LayoutParams(-1, -1));
 
         // Header: clock on the left, Settings on the right.
@@ -138,7 +138,7 @@ public class HomeActivity extends Activity {
         header.addView(times, new LinearLayout.LayoutParams(0, -2, 1f));
         settingsButton = settingsButton();
         header.addView(settingsButton, new LinearLayout.LayoutParams(dp(52), dp(52)));
-        header.setPadding(dp(56), 0, dp(56), 0);
+        header.setPadding(dp(56), dp(8), dp(56), dp(8));
         header.setClipChildren(false);
         col.addView(header);
 
@@ -146,7 +146,7 @@ public class HomeActivity extends Activity {
         title.setText("MY APPS");
         title.setLetterSpacing(0.14f);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
-        tlp.topMargin = dp(30);
+        tlp.topMargin = dp(22);
         tlp.leftMargin = dp(56);
         col.addView(title, tlp);
 

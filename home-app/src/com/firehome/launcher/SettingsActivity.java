@@ -99,7 +99,8 @@ public class SettingsActivity extends Activity {
         listScroll = new ScrollView(this);
         listScroll.setVerticalScrollBarEnabled(false);
         listScroll.setClipToPadding(false);
-        listScroll.setPadding(dp(12), dp(56), dp(64), dp(56));
+        listScroll.setClipChildren(false);
+        listScroll.setPadding(dp(20), dp(56), dp(64), dp(56));
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setClipChildren(false);
