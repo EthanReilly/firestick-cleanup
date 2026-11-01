@@ -260,11 +260,6 @@ public class SettingsActivity extends Activity {
                     toggleHomeButton();
                 }
             }));
-            rows.add(new Row("Instant Home & volume", instantStatus(), false, new Runnable() {
-                public void run() {
-                    setUpInstant();
-                }
-            }));
             rows.add(new Row("About", null, true, open(aboutPage)));
             rows.add(new Row("All Fire TV settings", null, true, system(null, Settings.ACTION_SETTINGS)));
         }

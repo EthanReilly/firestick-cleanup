@@ -71,10 +71,9 @@ public class HomeRedirectService extends AccessibilityService {
         } catch (Exception ignored) {
         }
         startRemoteListener();
-        Log.i(LocalShell.TAG, "redirect service connected, shell set up: " + LocalShell.isEnabled(this));
-        if ("1".equals(android.provider.Settings.Global.getString(getContentResolver(), "adb_enabled"))) {
-            LocalShell.connect(this, null); // keep trying the instant link until it works
-        }
+        // Fire OS 7.7 refuses ADB connections from the Fire Stick itself, so there's no shell here;
+        // Home opens as an app (Fire OS may hold it back ~5 s after a remote Home press).
+        Log.i(LocalShell.TAG, "redirect service connected");
     }
 
     /**

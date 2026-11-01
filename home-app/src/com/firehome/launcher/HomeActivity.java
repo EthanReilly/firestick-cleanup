@@ -77,18 +77,6 @@ public class HomeActivity extends Activity {
         f.addAction(Intent.ACTION_PACKAGE_CHANGED);
         f.addDataScheme("package");
         registerReceiver(packagesChanged, f);
-        offerInstantHome();
-    }
-
-    /**
-     * First time this version opens with ADB debugging on: connect the instant Home & volume link
-     * (the TV asks "Allow USB debugging?" once). Can also be set up later in Settings.
-     */
-    private void offerInstantHome() {
-        if (LocalShell.isReady() || LocalShell.isConnecting()) return;
-        String adb = android.provider.Settings.Global.getString(getContentResolver(), "adb_enabled");
-        if (!"1".equals(adb)) return;
-        LocalShell.connect(this, null); // silent if already allowed; the TV asks once otherwise
     }
 
     @Override

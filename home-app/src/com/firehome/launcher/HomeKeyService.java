@@ -61,7 +61,6 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void open(Class<?> cls) {
-        if (cls == HomeActivity.class && LocalShell.openHome(this)) return;
         Intent i = new Intent(this, cls);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         if (cls == HomeActivity.class) i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);

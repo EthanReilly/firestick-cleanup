@@ -325,9 +325,6 @@ try {
     ) | Out-File $Diag -Encoding utf8
 
     Sh "am start -n $HomePkg/.HomeActivity" | Out-Null
-    Write-Host ""
-    Say ">>> If the TV asks 'Allow USB debugging?' for FireHome, tick 'Always allow' and select OK." Yellow
-    Say "    That turns on Instant Home & volume (Home opens straight away, Fire Remote volume works)." Yellow
 
     Write-Host ""
     Say "All done! Your TV should now show the new Home screen." Green
