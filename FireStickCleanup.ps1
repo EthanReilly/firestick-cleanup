@@ -304,12 +304,22 @@ try {
     if ($redirOk) { Say "Home button redirect: on" Green } else { Say "Home button redirect: Fire OS switched it OFF" Red }
     if ($keyOk) { Say "Instant Home button (no flash): on" Green } else { Say "Instant Home button: Fire OS switched it OFF (you'll see a brief flash)" DarkYellow }
 
+    # Can the Home app reach ADB on the Fire Stick itself? (needed for Instant Home & volume)
+    $probeSrc = Join-Path $Here "adbprobe.sh"
+    $probe = ""
+    if (Test-Path $probeSrc) {
+        & $Adb -s $script:Target push $probeSrc /data/local/tmp/adbprobe.sh 2>&1 | Out-Null
+        $probe = Sh "sh /data/local/tmp/adbprobe.sh"
+    }
+    Start-Sleep -Seconds 4 # let the Home app try its instant link and log the result
+
     # Save details for troubleshooting.
     @(
         "Fire OS: $fos  Model: $model  API: $sdk",
         "enabled_accessibility_services = $enabledNow",
         "accessibility_enabled = " + (Sh "settings get secure accessibility_enabled"),
         "Home package: " + (Sh "dumpsys package $HomePkg | grep -E 'versionName|WRITE_SECURE'"),
+        "---- ADB self-connection probe ----", $probe,
         "---- dumpsys accessibility ----", $dump,
         "---- recent log ----", (Sh "logcat -d -t 600 | grep -iE 'accessib|firehome|HomeKey|HomeRedirect'")
     ) | Out-File $Diag -Encoding utf8

@@ -72,7 +72,9 @@ public class HomeRedirectService extends AccessibilityService {
         }
         startRemoteListener();
         Log.i(LocalShell.TAG, "redirect service connected, shell set up: " + LocalShell.isEnabled(this));
-        if (LocalShell.isEnabled(this)) LocalShell.connect(this, null);
+        if ("1".equals(android.provider.Settings.Global.getString(getContentResolver(), "adb_enabled"))) {
+            LocalShell.connect(this, null); // keep trying the instant link until it works
+        }
     }
 
     /**
@@ -211,7 +213,7 @@ public class HomeRedirectService extends AccessibilityService {
         try {
             WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
             ImageView v = new ImageView(this);
-            v.setScaleType(ImageView.ScaleType.FIT_XY);
+            v.setScaleType(ImageView.ScaleType.FIT_XY); // same size as the screen, so drawn 1:1
             Bitmap b = snapshot;
             if (b != null) v.setImageBitmap(b);
             v.setBackgroundColor(Look.baseColor(this));

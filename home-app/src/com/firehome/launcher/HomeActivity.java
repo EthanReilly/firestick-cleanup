@@ -85,11 +85,10 @@ public class HomeActivity extends Activity {
      * (the TV asks "Allow USB debugging?" once). Can also be set up later in Settings.
      */
     private void offerInstantHome() {
-        if (Apps.prefs(this).getBoolean("shell_offered", false) || LocalShell.isEnabled(this)) return;
+        if (LocalShell.isReady() || LocalShell.isConnecting()) return;
         String adb = android.provider.Settings.Global.getString(getContentResolver(), "adb_enabled");
         if (!"1".equals(adb)) return;
-        Apps.prefs(this).edit().putBoolean("shell_offered", true).apply();
-        LocalShell.connect(this, null);
+        LocalShell.connect(this, null); // silent if already allowed; the TV asks once otherwise
     }
 
     @Override
@@ -118,15 +117,15 @@ public class HomeActivity extends Activity {
         takeSnapshot();
     }
 
-    /** Keeps a half-size picture of this screen for the instant cover shown after a Home press. */
+    /** Keeps a full-size picture of this screen for the instant cover shown after a Home press. */
     private void takeSnapshot() {
         try {
             int w = root.getWidth(), h = root.getHeight();
             if (w == 0 || h == 0) return;
-            android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(w / 2, h / 2,
-                    android.graphics.Bitmap.Config.RGB_565);
+            android.graphics.Bitmap old = HomeRedirectService.snapshot;
+            android.graphics.Bitmap b = old != null && !old.isRecycled() && old.getWidth() == w && old.getHeight() == h
+                    ? old : android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
             android.graphics.Canvas c = new android.graphics.Canvas(b);
-            c.scale(0.5f, 0.5f);
             root.draw(c);
             HomeRedirectService.snapshot = b;
         } catch (Throwable ignored) {

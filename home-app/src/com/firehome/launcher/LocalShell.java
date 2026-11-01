@@ -59,7 +59,12 @@ final class LocalShell {
         return false;
     }
 
+    private static volatile long lastAttempt;
+
     static void connect(Context ctx, final Callback cb) {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (cb == null && !connecting && !isReady() && now - lastAttempt < 60000) return; // silent retries: once a minute
+        lastAttempt = now;
         if (connecting || isReady()) {
             if (isReady() && cb != null) cb.onConnected();
             return;
