@@ -17,10 +17,9 @@ Packages are turned off with `pm disable-user`, not deleted, so nothing is lost 
 
 - **Spotlight layout:** the selected app's name sits large across the top over a faint wash of its colour, and **My apps** (just the apps you choose) run in one row along the bottom. The last tile is a **+** for adding more. The clock and Settings button sit top right.
 - Press **Menu** on an app to move it or remove it.
-- **Settings** (the gear, or hold Home):
+- **Settings** (the gear): laid out like Fire TV's own, with tiles for Network, Display & Sounds, Applications, Controllers & Bluetooth Devices, Notifications, Preferences, Accessibility, My Fire TV and more. Each opens the real Fire TV screen behind it. Below the tiles are this app's own options:
   - **Home screen:** tile size, app names, background, 12- or 24-hour clock.
   - **Switches:** ad-blocking on/off, whether the Home button opens this screen or Amazon's, and whether the gear opens this Settings page or Fire TV's own. Press Menu on the gear for the other one.
-  - **Shortcuts:** the Fire Stick's own Network, Display & Sounds, Applications and Bluetooth screens.
   - **About:** device, Fire OS version, IP address and free storage.
 
 ## How to use

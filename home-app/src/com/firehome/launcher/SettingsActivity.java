@@ -70,14 +70,30 @@ public class SettingsActivity extends Activity {
     private TextView pageTitle, pageSubtitle;
     private LinearLayout list;
     private ScrollView listScroll;
+    private LinearLayout split;
+    private ScrollView mainScroll;
+    private LinearLayout mainBox;
+    private final List<View> mainTiles = new ArrayList<View>();
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         root = new FrameLayout(this);
         root.setBackground(Look.background(this));
-        LinearLayout split = new LinearLayout(this);
+        split = new LinearLayout(this);
         root.addView(split, new FrameLayout.LayoutParams(-1, -1));
+
+        // Main page: Fire TV's settings tiles, laid out like Amazon's, then this app's own options.
+        mainScroll = new ScrollView(this);
+        mainScroll.setVerticalScrollBarEnabled(false);
+        mainScroll.setClipToPadding(false);
+        mainScroll.setClipChildren(false);
+        mainScroll.setPadding(dp(56), dp(40), dp(56), dp(48));
+        mainBox = new LinearLayout(this);
+        mainBox.setOrientation(LinearLayout.VERTICAL);
+        mainBox.setClipChildren(false);
+        mainScroll.addView(mainBox, new ViewGroup.LayoutParams(-1, -2));
+        root.addView(mainScroll, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
@@ -139,6 +155,10 @@ public class SettingsActivity extends Activity {
 
     private int currentFocusIndex() {
         View f = getCurrentFocus();
+        if (!stack.isEmpty() && stack.get(stack.size() - 1) == main) {
+            int i = mainTiles.indexOf(f);
+            return i < 0 ? 0 : i;
+        }
         for (int i = 0; i < list.getChildCount(); i++) if (list.getChildAt(i) == f) return i;
         return 0;
     }
@@ -149,6 +169,13 @@ public class SettingsActivity extends Activity {
 
     private void show(int focusIndex) {
         Page p = stack.get(stack.size() - 1);
+        boolean isMain = p == main;
+        split.setVisibility(isMain ? View.GONE : View.VISIBLE);
+        mainScroll.setVisibility(isMain ? View.VISIBLE : View.GONE);
+        if (isMain) {
+            buildMain(focusIndex);
+            return;
+        }
         pageTitle.setText(p.title());
         pageSubtitle.setText(p.subtitle());
         List<Row> rows = new ArrayList<Row>();
@@ -170,6 +197,135 @@ public class SettingsActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(58));
         lp.bottomMargin = dp(8);
         return lp;
+    }
+
+    // ------------------------------------------------------------------ main page (Amazon-style tiles)
+
+    private void buildMain(int focusIndex) {
+        mainBox.removeAllViews();
+        mainTiles.clear();
+        TextView title = Look.text(this, 34, Color.WHITE, "sans-serif-medium", Typeface.BOLD);
+        title.setText("Settings");
+        mainBox.addView(title);
+
+        int cols = 4;
+        int width = getResources().getDisplayMetrics().widthPixels - dp(112);
+        int gap = dp(18);
+        int tileW = (width - gap * (cols - 1)) / cols;
+        int tileH = dp(132);
+
+        List<View> fire = new ArrayList<View>();
+        for (final FireTvSettings.Section sec : FireTvSettings.sections(this)) {
+            fire.add(tile(sec.icon, sec.title, null, new Runnable() {
+                public void run() {
+                    FireTvSettings.open(SettingsActivity.this, sec);
+                }
+            }));
+        }
+        fire.add(tile(Glyph.GEAR, "All Fire TV Settings", null, new Runnable() {
+            public void run() {
+                openFireTvSettings(SettingsActivity.this, null, Settings.ACTION_SETTINGS);
+            }
+        }));
+        addGrid(fire, cols, tileW, tileH, gap, dp(26));
+
+        TextView label = Look.text(this, 14, 0xFF9AA3AF, "sans-serif-medium", Typeface.BOLD);
+        label.setText("HOME APP");
+        label.setLetterSpacing(0.14f);
+        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(-2, -2);
+        llp.topMargin = dp(30);
+        mainBox.addView(label, llp);
+
+        List<View> mine = new ArrayList<View>();
+        mine.add(tile(Glyph.HOME, "Home screen", null, open(homePage)));
+        mine.add(tile(Glyph.SHIELD, "Ad-blocking", adBlockOn() ? "On" : "Off", new Runnable() {
+            public void run() {
+                toggleAdBlock();
+            }
+        }));
+        mine.add(tile(Glyph.REMOTE, "Home button", homeButtonOn() ? "Opens this Home" : "Amazon Home", new Runnable() {
+            public void run() {
+                toggleHomeButton();
+            }
+        }));
+        mine.add(tile(Glyph.INFO, "About", null, open(aboutPage)));
+        addGrid(mine, cols, tileW, tileH, gap, dp(14));
+
+        if (!mainTiles.isEmpty()) {
+            final View f = mainTiles.get(Math.min(focusIndex, mainTiles.size() - 1));
+            f.post(new Runnable() {
+                public void run() {
+                    f.requestFocus();
+                }
+            });
+        }
+    }
+
+    private void addGrid(List<View> tiles, int cols, int w, int h, int gap, int top) {
+        LinearLayout row = null;
+        for (int i = 0; i < tiles.size(); i++) {
+            if (i % cols == 0) {
+                row = new LinearLayout(this);
+                row.setClipChildren(false);
+                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+                rlp.topMargin = i == 0 ? top : gap;
+                mainBox.addView(row, rlp);
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, h);
+            if (i % cols != 0) lp.leftMargin = gap;
+            row.addView(tiles.get(i), lp);
+            mainTiles.add(tiles.get(i));
+        }
+    }
+
+    /** A Fire TV-style settings tile: icon above its name (and an optional value). */
+    private View tile(int icon, String name, String value, final Runnable action) {
+        final LinearLayout t = new LinearLayout(this);
+        t.setOrientation(LinearLayout.VERTICAL);
+        t.setGravity(Gravity.CENTER);
+        t.setFocusable(true);
+        t.setFocusableInTouchMode(true);
+        Look.noSystemFocusHighlight(t);
+        t.setPadding(dp(12), dp(10), dp(12), dp(10));
+        final GradientDrawable bg = Look.rounded(this, 0x14FFFFFF, 14);
+        t.setBackground(bg);
+        final Glyph g = new Glyph(this, icon, Color.WHITE);
+        t.addView(g, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        final TextView n = Look.text(this, 15, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
+        n.setText(name);
+        n.setGravity(Gravity.CENTER);
+        n.setMaxLines(2);
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(-1, -2);
+        nlp.topMargin = dp(12);
+        t.addView(n, nlp);
+        final TextView v = Look.text(this, 13, 0xFFAEB6C2, "sans-serif", Typeface.NORMAL);
+        if (value != null) {
+            v.setText(value);
+            v.setGravity(Gravity.CENTER);
+            t.addView(v, new LinearLayout.LayoutParams(-1, -2));
+        }
+        t.setContentDescription(value == null ? name : name + ", " + value);
+        t.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            public void onFocusChange(View view, boolean has) {
+                bg.setColor(has ? Color.WHITE : 0x14FFFFFF);
+                g.setColor(has ? 0xFF111111 : Color.WHITE);
+                n.setTextColor(has ? 0xFF111111 : Color.WHITE);
+                v.setTextColor(has ? 0xFF4A4F57 : 0xFFAEB6C2);
+                view.animate().scaleX(has ? 1.05f : 1f).scaleY(has ? 1.05f : 1f).setDuration(140).start();
+                if (has) {
+                    View row = (View) view.getParent();
+                    int y = mainScroll.getScrollY(), hh = mainScroll.getHeight();
+                    if (row.getTop() < y) mainScroll.smoothScrollTo(0, row.getTop() - dp(16));
+                    else if (row.getBottom() + dp(48) > y + hh) mainScroll.smoothScrollTo(0, row.getBottom() + dp(48) - hh);
+                }
+            }
+        });
+        t.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                action.run();
+            }
+        });
+        return t;
     }
 
     private View rowView(final Row r) {
