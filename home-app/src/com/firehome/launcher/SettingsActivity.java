@@ -178,6 +178,7 @@ public class SettingsActivity extends Activity {
         row.setPadding(dp(22), 0, dp(18), 0);
         row.setFocusable(r.action != null);
         row.setFocusableInTouchMode(r.action != null);
+        Look.noSystemFocusHighlight(row);
         final GradientDrawable bg = Look.rounded(this, 0x14FFFFFF, 12);
         row.setBackground(bg);
 
@@ -259,6 +260,11 @@ public class SettingsActivity extends Activity {
                     toggleHomeButton();
                 }
             }));
+            rows.add(new Row("Instant Home & volume", instantStatus(), false, new Runnable() {
+                public void run() {
+                    setUpInstant();
+                }
+            }));
             rows.add(new Row("About", null, true, open(aboutPage)));
             rows.add(new Row("All Fire TV settings", null, true, system(Settings.ACTION_SETTINGS)));
         }
@@ -276,6 +282,17 @@ public class SettingsActivity extends Activity {
         public void build(List<Row> rows) {
             final android.content.SharedPreferences p = Apps.prefs(SettingsActivity.this);
             rows.add(new Row("My apps", null, true, open(myAppsPage)));
+            final boolean fireTvGear = p.getBoolean("gear_firetv", false);
+            rows.add(new Row("Settings button opens", fireTvGear ? "Fire TV Settings" : "This Settings page", false,
+                    new Runnable() {
+                        public void run() {
+                            p.edit().putBoolean("gear_firetv", !fireTvGear).apply();
+                            toast(!fireTvGear
+                                    ? "The gear opens Fire TV's Settings. Press Menu on it for this page."
+                                    : "The gear opens this page. Press Menu on it for Fire TV's Settings.");
+                            refresh();
+                        }
+                    }));
             final int size = p.getInt("size", 1);
             rows.add(new Row("Tile size", Look.SIZE_NAMES[size], false, new Runnable() {
                 public void run() {
@@ -520,6 +537,56 @@ public class SettingsActivity extends Activity {
             toast("Couldn't change the Home button.");
         }
         refresh();
+    }
+
+    private String instantStatus() {
+        if (LocalShell.isReady()) return "On";
+        if (LocalShell.isConnecting()) return "Connecting…";
+        return LocalShell.isEnabled(this) ? "Reconnect" : "Set up";
+    }
+
+    /** Connects this app to the Fire Stick's ADB debugging so Home opens instantly and volume works. */
+    private void setUpInstant() {
+        if (LocalShell.isReady()) {
+            toast("Instant Home & volume is on.");
+            return;
+        }
+        final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Instant Home & volume")
+                .setMessage("Makes the Home button on any remote open this Home straight away, and lets Fire Remote "
+                        + "change the volume.\n\nYour TV will ask \"Allow USB debugging?\" for \"FireHome\". "
+                        + "Tick \"Always allow from this computer\" and select OK.")
+                .setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        toast("Connecting…");
+                        LocalShell.connect(SettingsActivity.this, new LocalShell.Callback() {
+                            public void onPrompt() {
+                            }
+
+                            public void onConnected() {
+                                ui.post(new Runnable() {
+                                    public void run() {
+                                        toast("Instant Home & volume is on.");
+                                        refresh();
+                                    }
+                                });
+                            }
+
+                            public void onFailed(final String why) {
+                                ui.post(new Runnable() {
+                                    public void run() {
+                                        toast("Couldn't connect: " + why);
+                                        refresh();
+                                    }
+                                });
+                            }
+                        });
+                        refresh();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void notAllowed() {

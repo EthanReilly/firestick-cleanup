@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.KeyEvent;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
 /**
@@ -30,7 +31,17 @@ public class HomeKeyService extends AccessibilityService {
     };
 
     @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        Log.i(LocalShell.TAG, "key service connected");
+    }
+
+    @Override
     protected boolean onKeyEvent(KeyEvent e) {
+        if (e.getRepeatCount() == 0) {
+            Log.i(LocalShell.TAG, "key seen: " + KeyEvent.keyCodeToString(e.getKeyCode())
+                    + (e.getAction() == KeyEvent.ACTION_DOWN ? " down" : " up"));
+        }
         if (e.getKeyCode() != KeyEvent.KEYCODE_HOME) return false;
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             if (e.getRepeatCount() == 0) {
@@ -50,6 +61,7 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void open(Class<?> cls) {
+        if (cls == HomeActivity.class && LocalShell.openHome(this)) return;
         Intent i = new Intent(this, cls);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         if (cls == HomeActivity.class) i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);

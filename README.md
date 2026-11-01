@@ -19,7 +19,7 @@ Packages are turned off with `pm disable-user`, not deleted, so nothing is lost 
 - Press **Menu** on an app to move it or remove it.
 - **Settings** (the gear, or hold Home):
   - **Home screen:** tile size, app names, background, 12- or 24-hour clock.
-  - **Switches:** ad-blocking on/off, and whether the Home button opens this screen or Amazon's.
+  - **Switches:** ad-blocking on/off, whether the Home button opens this screen or Amazon's, and whether the gear opens this Settings page or Fire TV's own. Press Menu on the gear for the other one.
   - **Shortcuts:** the Fire Stick's own Network, Display & Sounds, Applications and Bluetooth screens.
   - **About:** device, Fire OS version, IP address and free storage.
 
@@ -39,7 +39,8 @@ It takes about a minute. Running it again is safe: it skips anything already don
 
 ### Home button notes
 
-- A real Fire TV remote's Home key goes through Fire OS. Fire OS blocks other apps from opening screens for about 5 seconds after Home is pressed, so the new Home screen can take a moment to appear.
+- A real Fire TV remote's Home key goes through Fire OS, which blocks other apps from opening screens for about 5 seconds after Home is pressed.
+- **Instant Home & volume** gets round this. The Home app connects to the Fire Stick's own ADB debugging, and the TV asks "Allow USB debugging?" for FireHome once. With it on, Home opens straight away on any remote, and Fire Remote's volume buttons work. It is offered on first launch, and is in Home's Settings.
 - [Fire Remote](https://github.com/EthanReilly/fire-remote), the companion phone app, asks the Home app to open directly (over your Wi-Fi, port 47100), which avoids that delay. If the Home app isn't installed, or its Home button setting is off, Fire Remote uses Amazon's Home instead.
 - **Test Home Button.bat** records what the Fire Stick does when Home is pressed, which helps with troubleshooting.
 
@@ -50,6 +51,7 @@ It takes about a minute. Running it again is safe: it skips anything already don
 | `Run Fire Stick Cleanup.bat` | Runs the clean-up |
 | `Undo Fire Stick Cleanup.bat` | Reverses every change |
 | `Test Home Button.bat` | Records a Home button log for troubleshooting |
+| `Test Buttons.bat` | Records Home and volume button logs for troubleshooting |
 | `FireStickCleanup.ps1` | The clean-up script |
 | `FireHome.apk` | The ad-free Home screen app |
 | `home-app/` | Source code for the Home screen app |

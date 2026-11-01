@@ -79,6 +79,19 @@ public class HomeActivity extends Activity {
         f.addAction(Intent.ACTION_PACKAGE_CHANGED);
         f.addDataScheme("package");
         registerReceiver(packagesChanged, f);
+        offerInstantHome();
+    }
+
+    /**
+     * First time this version opens with ADB debugging on: connect the instant Home & volume link
+     * (the TV asks "Allow USB debugging?" once). Can also be set up later in Settings.
+     */
+    private void offerInstantHome() {
+        if (Apps.prefs(this).getBoolean("shell_offered", false) || LocalShell.isEnabled(this)) return;
+        String adb = android.provider.Settings.Global.getString(getContentResolver(), "adb_enabled");
+        if (!"1".equals(adb)) return;
+        Apps.prefs(this).edit().putBoolean("shell_offered", true).apply();
+        LocalShell.connect(this, null);
     }
 
     @Override
@@ -137,7 +150,7 @@ public class HomeActivity extends Activity {
         times.addView(date);
         header.addView(times, new LinearLayout.LayoutParams(0, -2, 1f));
         settingsButton = settingsButton();
-        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(62), dp(62)));
         header.setPadding(dp(56), dp(8), dp(56), dp(8));
         header.setClipChildren(false);
         col.addView(header);
@@ -174,11 +187,14 @@ public class HomeActivity extends Activity {
         final FrameLayout b = new FrameLayout(this);
         b.setFocusable(true);
         b.setFocusableInTouchMode(true);
-        b.setContentDescription("Settings");
+        b.setContentDescription("Settings. Press Menu for the other settings.");
+        Look.noSystemFocusHighlight(b);
+        // The highlight grows inside the button's own area (no zoom), so nothing can be cut off.
         final GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         bg.setColor(0x22FFFFFF);
-        b.setBackground(bg);
+        final int inset = dp(5);
+        b.setBackground(new android.graphics.drawable.InsetDrawable(bg, inset));
         final Glyph g = new Glyph(this, Glyph.GEAR, Color.WHITE);
         b.addView(g, new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
         b.setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -186,16 +202,47 @@ public class HomeActivity extends Activity {
             public void onFocusChange(View v, boolean has) {
                 bg.setColor(has ? Color.WHITE : 0x22FFFFFF);
                 g.setColor(has ? 0xFF111111 : Color.WHITE);
-                v.animate().scaleX(has ? 1.12f : 1f).scaleY(has ? 1.12f : 1f).setDuration(150).start();
+                v.setBackground(new android.graphics.drawable.InsetDrawable(bg, has ? 0 : inset));
             }
         });
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(HomeActivity.this, SettingsActivity.class));
+                openSettings(!Apps.prefs(HomeActivity.this).getBoolean("gear_firetv", false));
+            }
+        });
+        b.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int code, KeyEvent e) {
+                if (code == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) {
+                    openSettings(Apps.prefs(HomeActivity.this).getBoolean("gear_firetv", false));
+                    return true;
+                }
+                return false;
+            }
+        });
+        b.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                openSettings(Apps.prefs(HomeActivity.this).getBoolean("gear_firetv", false));
+                return true;
             }
         });
         return b;
+    }
+
+    /** ours = this Home app's Settings; otherwise Fire TV's own Settings. */
+    private void openSettings(boolean ours) {
+        if (ours) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return;
+        }
+        try {
+            startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            startActivity(new Intent(this, SettingsActivity.class));
+        }
     }
 
     // ------------------------------------------------------------------ data
@@ -392,6 +439,7 @@ public class HomeActivity extends Activity {
         tile.setClipChildren(false);
         tile.setFocusable(true);
         tile.setFocusableInTouchMode(true);
+        Look.noSystemFocusHighlight(tile);
         tile.addView(card, new LinearLayout.LayoutParams(w, h));
         TextView label = Look.text(this, 15, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
         label.setText(name);

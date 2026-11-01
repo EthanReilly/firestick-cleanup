@@ -311,10 +311,13 @@ try {
         "accessibility_enabled = " + (Sh "settings get secure accessibility_enabled"),
         "Home package: " + (Sh "dumpsys package $HomePkg | grep -E 'versionName|WRITE_SECURE'"),
         "---- dumpsys accessibility ----", $dump,
-        "---- recent log ----", (Sh "logcat -d -t 400 | grep -iE 'accessib|firehome|HomeKey|HomeRedirect'")
+        "---- recent log ----", (Sh "logcat -d -t 600 | grep -iE 'accessib|firehome|HomeKey|HomeRedirect'")
     ) | Out-File $Diag -Encoding utf8
 
     Sh "am start -n $HomePkg/.HomeActivity" | Out-Null
+    Write-Host ""
+    Say ">>> If the TV asks 'Allow USB debugging?' for FireHome, tick 'Always allow' and select OK." Yellow
+    Say "    That turns on Instant Home & volume (Home opens straight away, Fire Remote volume works)." Yellow
 
     Write-Host ""
     Say "All done! Your TV should now show the new Home screen." Green

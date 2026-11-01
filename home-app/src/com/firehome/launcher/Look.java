@@ -56,6 +56,14 @@ final class Look {
         return g;
     }
 
+    /** Turns off Android's own grey focus box (API 26+), which would sit on top of our highlight. */
+    static void noSystemFocusHighlight(android.view.View v) {
+        try {
+            android.view.View.class.getMethod("setDefaultFocusHighlightEnabled", boolean.class).invoke(v, false);
+        } catch (Exception ignored) {
+        }
+    }
+
     static int lighten(int c, float f) {
         return Color.rgb((int) (Color.red(c) + (255 - Color.red(c)) * f),
                 (int) (Color.green(c) + (255 - Color.green(c)) * f),

@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
 import java.io.BufferedReader;
@@ -47,6 +48,8 @@ public class HomeRedirectService extends AccessibilityService {
         } catch (Exception ignored) {
         }
         startRemoteListener();
+        Log.i(LocalShell.TAG, "redirect service connected, shell set up: " + LocalShell.isEnabled(this));
+        if (LocalShell.isEnabled(this)) LocalShell.connect(this, null);
     }
 
     /**
@@ -90,8 +93,13 @@ public class HomeRedirectService extends AccessibilityService {
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
                 startActivity(i);
                 out.write("OK\n".getBytes("UTF-8"));
+            } else if (line != null && line.trim().toUpperCase().startsWith("KEY ")) {
+                // Remote keys Fire OS's remote service can't send (volume, mute), via the shell.
+                String code = line.trim().substring(4).trim();
+                boolean ok = code.matches("\\d{1,3}") && LocalShell.run(this, "input keyevent " + code);
+                out.write((ok ? "OK\n" : "NOSHELL\n").getBytes("UTF-8"));
             } else if (line != null && line.trim().equalsIgnoreCase("PING")) {
-                out.write("FIREHOME\n".getBytes("UTF-8"));
+                out.write(("FIREHOME shell=" + (LocalShell.isReady() ? 1 : 0) + "\n").getBytes("UTF-8"));
             } else {
                 out.write("?\n".getBytes("UTF-8"));
             }
@@ -128,6 +136,10 @@ public class HomeRedirectService extends AccessibilityService {
         long now = SystemClock.uptimeMillis();
         if (now - lastRedirect < 500) return;
         lastRedirect = now;
+        // Through the shell this opens at once; a normal app launch waits 5 s after a Home press.
+        boolean viaShell = LocalShell.openHome(this);
+        Log.i(LocalShell.TAG, "Amazon home appeared (" + cls + "), opening ours " + (viaShell ? "via shell" : "as app"));
+        if (viaShell) return;
         Intent i = new Intent(this, HomeActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
