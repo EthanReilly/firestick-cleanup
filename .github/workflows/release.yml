@@ -1,0 +1,69 @@
+name: Release
+
+# Publishes a GitHub release with a ready-to-use ZIP of the clean-up tool and the Home app APK.
+# - Actions tab > Release > "Run workflow": releases the Home app version in home-app/AndroidManifest.xml.
+# - Or push a tag like v2.1, or create a release on the website: the files are attached automatically.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(grep -o 'android:versionName="[^"]*"' home-app/AndroidManifest.xml | cut -d'"' -f2)
+            TAG="v$VERSION"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION="${TAG#v}"
+          else
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
+          fi
+
+          # The ZIP holds just what you need to run it on a Windows PC.
+          mkdir -p "Fire Stick Cleanup"
+          cp "Run Fire Stick Cleanup.bat" "Undo Fire Stick Cleanup.bat" FireStickCleanup.ps1 FireHome.apk \
+             adbprobe.sh "Fire Stick Cleanup/"
+          for f in "Test Home Button.bat" TestHomeButton.ps1 "Test Buttons.bat" TestButtons.ps1 \
+                   Diagnose.bat Diagnose.ps1 "Settings Check.bat" SettingsCheck.ps1; do
+            [ -f "$f" ] && cp "$f" "Fire Stick Cleanup/"
+          done
+          ZIP="Fire-Stick-Cleanup-$VERSION.zip"
+          zip -r -q "$ZIP" "Fire Stick Cleanup"
+
+          cat > notes.md <<NOTES
+          ## How to use
+
+          1. On the Fire Stick: **Settings → My Fire TV → Developer options → ADB debugging ON**.
+          2. Download **$ZIP** below on a Windows PC on the same Wi-Fi, and unzip it.
+          3. Double-click **Run Fire Stick Cleanup.bat**, and choose **Always allow** when the TV asks.
+
+          To undo everything, double-click **Undo Fire Stick Cleanup.bat**.
+
+          **FireHome.apk** is the ad-free Home screen on its own (the ZIP already includes it).
+          See the [README](https://github.com/${GITHUB_REPOSITORY}#readme) for details.
+          NOTES
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" FireHome.apk --clobber
+          else
+            gh release create "$TAG" "$ZIP" FireHome.apk \
+              --title "Fire Stick Clean-up (Home $VERSION)" \
+              --notes-file notes.md \
+              --target "${{ github.sha }}"
+          fi
