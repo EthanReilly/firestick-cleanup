@@ -216,7 +216,7 @@ public class SettingsActivity extends Activity {
 
         List<View> fire = new ArrayList<View>();
         for (final FireTvSettings.Section sec : FireTvSettings.sections(this)) {
-            fire.add(tile(sec.icon, sec.title, null, new Runnable() {
+            fire.add(tile(sec.icon, sec.title, sec.screen == null ? "In Fire TV Settings" : null, new Runnable() {
                 public void run() {
                     FireTvSettings.open(SettingsActivity.this, sec);
                 }

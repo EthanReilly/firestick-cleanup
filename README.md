@@ -17,7 +17,7 @@ Packages are turned off with `pm disable-user`, not deleted, so nothing is lost 
 
 - **Spotlight layout:** the selected app's name sits large across the top over a faint wash of its colour, and **My apps** (just the apps you choose) run in one row along the bottom. The last tile is a **+** for adding more. The clock and Settings button sit top right.
 - Press **Menu** on an app to move it or remove it.
-- **Settings** (the gear): laid out like Fire TV's own, with tiles for Network, Display & Sounds, Applications, Controllers & Bluetooth Devices, Notifications, Preferences, Accessibility, My Fire TV and more. Each opens the real Fire TV screen behind it. Below the tiles are this app's own options:
+- **Settings** (the gear): laid out like Fire TV's own, with tiles for Network, Display & Sounds, Applications, Controllers & Bluetooth Devices, Notifications, Preferences, Accessibility, My Fire TV and more. Network, Applications, Controllers & Bluetooth and My Fire TV open their Fire TV screen directly. Amazon locks Display & Sounds, Accessibility, Preferences and Account to its own apps, so those tiles open Fire TV Settings, where you pick the section. Below the tiles are this app's own options:
   - **Home screen:** tile size, app names, background, 12- or 24-hour clock.
   - **Switches:** ad-blocking on/off, whether the Home button opens this screen or Amazon's, and whether the gear opens this Settings page or Fire TV's own. Press Menu on the gear for the other one.
   - **About:** device, Fire OS version, IP address and free storage.
@@ -52,6 +52,7 @@ It takes about a minute. Running it again is safe: it skips anything already don
 | `Test Home Button.bat` | Records a Home button log for troubleshooting |
 | `Test Buttons.bat` | Records Home and volume button logs for troubleshooting |
 | `Diagnose.bat` | Checks the Home app, settings shortcuts and Fire Remote link |
+| `Settings Check.bat` | Lists every way into Fire TV's settings screens and whether other apps may use it |
 | `FireStickCleanup.ps1` | The clean-up script |
 | `FireHome.apk` | The ad-free Home screen app |
 | `home-app/` | Source code for the Home screen app |

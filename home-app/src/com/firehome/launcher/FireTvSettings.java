@@ -4,7 +4,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
 import java.util.ArrayList;
@@ -22,6 +21,8 @@ final class FireTvSettings {
         final String title;
         final int icon;
         ComponentName screen; // null = open Fire TV's main Settings
+        String action;
+        boolean found;
 
         Section(String title, int icon) {
             this.title = title;
@@ -31,19 +32,26 @@ final class FireTvSettings {
 
     private static final String SETTINGS_PKG = "com.amazon.tv.settings.v2";
 
-    /** title, icon, then the class-name fragments that identify Amazon's screen for it. */
+    /**
+     * title, icon, Amazon's screen, and the request that makes it show that section. Amazon's
+     * screens pick their page from the request's action, so opening one without it shows the main page.
+     */
     private static final Object[][] SECTIONS = {
-            {"Network", Glyph.WIFI, new String[]{".tv.network.NetworkActivity", "network.Network"}},
-            {"Display & Sounds", Glyph.DISPLAY, new String[]{".tv.display_sounds.DisplayAndSoundsActivity", "DisplayAndSounds"}},
-            {"Applications", Glyph.APPS, new String[]{".tv.applications.ApplicationsActivity", "ApplicationsActivity"}},
-            {"Live TV", Glyph.TV, new String[]{"livetv.", "LiveTv"}},
-            {"Controllers & Bluetooth Devices", Glyph.CONTROLLER, new String[]{"ControllersAndBluetoothActivity"}},
-            {"Notifications", Glyph.BELL, new String[]{"notifications.Notification", "NotificationsActivity"}},
-            {"Equipment Control", Glyph.REMOTE, new String[]{"equipment", "Equipment", "devicecontrol"}},
-            {"Preferences", Glyph.SLIDERS, new String[]{"preferences.Preferences", "PreferencesActivity"}},
-            {"Accessibility", Glyph.ACCESS, new String[]{".tv.accessibility.AccessibilityActivity", "AccessibilityActivity"}},
-            {"My Fire TV", Glyph.DEVICE, new String[]{".tv.device.DeviceActivity", "device.DeviceActivity"}},
-            {"Account & Profile Settings", Glyph.PERSON, new String[]{"account.Account", "AccountActivity", "profiles.Profile"}},
+            {"Network", Glyph.WIFI, ".tv.network.NetworkActivity", "android.settings.WIFI_SETTINGS"},
+            {"Display & Sounds", Glyph.DISPLAY, ".tv.display_sounds.DisplayAndSoundsActivity",
+                    "com.amazon.device.settings.action.DISPLAY_AND_SOUNDS"},
+            {"Applications", Glyph.APPS, ".tv.applications.ApplicationsActivity",
+                    "com.amazon.device.settings.action.APPLICATIONS"},
+            {"Controllers & Bluetooth Devices", Glyph.CONTROLLER,
+                    ".tv.controllers_bluetooth_devices.ControllersAndBluetoothActivity",
+                    "com.amazon.device.settings.action.CONTROLLERS"},
+            {"Preferences", Glyph.SLIDERS, ".tv.preferences.PreferencesActivity",
+                    "com.amazon.device.settings.action.PREFERENCES"},
+            {"Accessibility", Glyph.ACCESS, ".tv.accessibility.AccessibilityActivity",
+                    "com.amazon.device.settings.action.ACCESSIBILITY"},
+            {"My Fire TV", Glyph.DEVICE, ".tv.device.DeviceActivity", "com.amazon.device.settings.action.DEVICE"},
+            {"Account & Profile Settings", Glyph.PERSON, ".tv.my_account.MyAccountActivity",
+                    "com.amazon.device.settings.action.MY_ACCOUNT"},
     };
 
     private static List<Section> cached;
@@ -51,40 +59,26 @@ final class FireTvSettings {
     static synchronized List<Section> sections(Context c) {
         if (cached != null) return cached;
         PackageManager pm = c.getPackageManager();
-        List<ActivityInfo> activities = new ArrayList<ActivityInfo>();
-        for (String pkg : new String[]{SETTINGS_PKG, "com.amazon.tv.devicecontrolsettings"}) {
-            try {
-                PackageInfo pi = pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES);
-                if (pi.activities != null) {
-                    for (ActivityInfo ai : pi.activities) activities.add(ai);
-                }
-            } catch (Exception ignored) {
-            }
-        }
         List<Section> out = new ArrayList<Section>();
         for (Object[] row : SECTIONS) {
             Section s = new Section((String) row[0], (Integer) row[1]);
-            ActivityInfo match = find(activities, (String[]) row[2]);
-            if (match != null && canOpen(c, match)) s.screen = new ComponentName(match.packageName, match.name);
-            // Equipment Control and Live TV only exist on some models; keep them only if found.
-            boolean optional = row[0].equals("Equipment Control") || row[0].equals("Live TV")
-                    || row[0].equals("Account & Profile Settings");
-            if (match == null && optional) continue;
-            out.add(s);
+            ComponentName cn = new ComponentName(SETTINGS_PKG, SETTINGS_PKG + row[2]);
+            try {
+                ActivityInfo ai = pm.getActivityInfo(cn, 0);
+                s.found = true;
+                if (canOpen(c, ai)) {
+                    s.screen = cn;
+                    s.action = (String) row[3];
+                }
+                android.util.Log.i(LocalShell.TAG, "settings " + row[0] + ": exported=" + ai.exported
+                        + " permission=" + ai.permission + " -> " + (s.screen != null ? "direct" : "via Fire TV Settings"));
+            } catch (Exception e) {
+                android.util.Log.i(LocalShell.TAG, "settings " + row[0] + ": not on this Fire OS");
+            }
+            if (s.found) out.add(s);
         }
         cached = out;
         return out;
-    }
-
-    private static ActivityInfo find(List<ActivityInfo> activities, String[] fragments) {
-        for (String f : fragments) {
-            for (ActivityInfo ai : activities) {
-                String n = ai.name;
-                if (n.endsWith("Receiver") || n.endsWith("Provider") || n.contains("Dummy")) continue;
-                if (n.endsWith(f) || n.contains(f)) return ai;
-            }
-        }
-        return null;
     }
 
     private static boolean canOpen(Context c, ActivityInfo ai) {
@@ -97,7 +91,7 @@ final class FireTvSettings {
         HomeRedirectService.settingsSeenAt = android.os.SystemClock.uptimeMillis();
         if (s.screen != null) {
             try {
-                c.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(s.screen)
+                c.startActivity(new Intent(s.action).setComponent(s.screen)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return;
             } catch (Exception e) {

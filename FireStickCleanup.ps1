@@ -278,6 +278,9 @@ try {
     Say "Installed." Green
 
     Sh "pm grant $HomePkg android.permission.WRITE_SECURE_SETTINGS" | Out-Null
+    $lsOut = Sh "pm grant $HomePkg com.amazon.tv.permission.LAUNCHER_SETTINGS"
+    if ($lsOut) { Say "Display & Sounds, Accessibility and Preferences will open through Fire TV Settings (Amazon keeps them locked)." DarkGray }
+    else { Say "Settings tiles can open every Fire TV section directly." Green }
     $perm = Sh "dumpsys package $HomePkg | grep WRITE_SECURE_SETTINGS"
     if ($perm -match "granted=true") { Say "Settings page can change ad-blocking and the Home button." Green }
 
@@ -319,9 +322,10 @@ try {
         "enabled_accessibility_services = $enabledNow",
         "accessibility_enabled = " + (Sh "settings get secure accessibility_enabled"),
         "Home package: " + (Sh "dumpsys package $HomePkg | grep -E 'versionName|WRITE_SECURE'"),
+        "---- LAUNCHER_SETTINGS grant ----", $lsOut,
         "---- ADB self-connection probe ----", $probe,
         "---- dumpsys accessibility ----", $dump,
-        "---- recent log ----", (Sh "logcat -d -t 600 | grep -iE 'accessib|firehome|HomeKey|HomeRedirect'")
+        "---- recent log ----", (Sh "logcat -d -t 1500 | grep -iE 'accessib|firehome|HomeKey|HomeRedirect'")
     ) | Out-File $Diag -Encoding utf8
 
     Sh "am start -n $HomePkg/.HomeActivity" | Out-Null
