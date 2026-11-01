@@ -156,8 +156,6 @@ public class HomeActivity extends Activity {
 
     private FrameLayout hero;
     private View heroColor;
-    private ImageView heroArt;
-    private View heroFadeDown, heroFadeLeft;
     private TextView heroTitle, heroHint;
     private HorizontalScrollView rowScroll;
     private LinearLayout row;
@@ -172,15 +170,7 @@ public class HomeActivity extends Activity {
         hero = new FrameLayout(this);
         heroColor = new View(this);
         hero.addView(heroColor, new FrameLayout.LayoutParams(-1, -1));
-        heroArt = new ImageView(this);
-        heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        hero.addView(heroArt, new FrameLayout.LayoutParams(-1, -1));
-        heroFadeLeft = new View(this);
-        hero.addView(heroFadeLeft, new FrameLayout.LayoutParams((int) (getResources().getDisplayMetrics().widthPixels * 0.6f), -1));
-        heroFadeDown = new View(this);
-        hero.addView(heroFadeDown, new FrameLayout.LayoutParams(-1, -1));
         root.addView(hero, new FrameLayout.LayoutParams(-1, heroH));
-        applyFades();
 
         // Clock, date and Settings (top right).
         LinearLayout top = new LinearLayout(this);
@@ -191,9 +181,9 @@ public class HomeActivity extends Activity {
         times.setOrientation(LinearLayout.VERTICAL);
         times.setGravity(Gravity.END);
         clock = Look.text(this, 30, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
-        clock.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
-        date = Look.text(this, 14, 0xFFE6E9EE, "sans-serif", Typeface.NORMAL);
-        date.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+
+        date = Look.text(this, 14, 0xFFAEB6C2, "sans-serif", Typeface.NORMAL);
+
         times.addView(clock);
         times.addView(date);
         top.addView(times);
@@ -209,23 +199,17 @@ public class HomeActivity extends Activity {
         // Selected app's name.
         LinearLayout titleBox = new LinearLayout(this);
         titleBox.setOrientation(LinearLayout.VERTICAL);
-        TextView label = Look.text(this, 14, 0xFFE6E9EE, "sans-serif-medium", Typeface.BOLD);
-        label.setText("SELECTED");
-        label.setLetterSpacing(0.14f);
-        label.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
-        heroTitle = Look.text(this, 56, Color.WHITE, "sans-serif-black", Typeface.BOLD);
+        heroTitle = Look.text(this, 52, Color.WHITE, "sans-serif-medium", Typeface.BOLD);
         heroTitle.setSingleLine(true);
         heroTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        heroTitle.setShadowLayer(dp(10), 0, dp(2), 0x99000000);
-        heroHint = Look.text(this, 16, 0xFFE6E9EE, "sans-serif", Typeface.NORMAL);
-        heroHint.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
-        titleBox.addView(label);
+
+        heroHint = Look.text(this, 15, 0xFFAEB6C2, "sans-serif", Typeface.NORMAL);
         titleBox.addView(heroTitle);
         titleBox.addView(heroHint);
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP | Gravity.START);
         hp.leftMargin = dp(56);
         hp.rightMargin = dp(56);
-        hp.topMargin = heroH - dp(150);
+        hp.topMargin = heroH - dp(122);
         root.addView(titleBox, hp);
 
         // My apps: one row along the bottom.
@@ -259,39 +243,21 @@ public class HomeActivity extends Activity {
         return root;
     }
 
-    private void applyFades() {
-        int base = Look.baseColor(this);
-        int clear = base & 0x00FFFFFF;
-        heroFadeDown.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{clear, (base & 0x00FFFFFF) | 0x99000000, base}));
-        heroFadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{(base & 0x00FFFFFF) | 0xAA000000, (base & 0x00FFFFFF) | 0x44000000, clear}));
-    }
-
-    /** Shows the selected app in the Spotlight area. app == null: the "Add app" tile. */
+    /** Shows the selected app in the Spotlight area: its name over a faint wash of its colour. */
     private void spotlight(Apps.App app) {
-        heroArt.animate().cancel();
+        int tint = app == null ? 0xFF3A4150 : app.tint;
+        heroColor.animate().cancel();
+        heroColor.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{(tint & 0x00FFFFFF) | 0x47000000, (tint & 0x00FFFFFF) | 0x14000000, 0x00000000}));
+        heroColor.setAlpha(0.4f);
+        heroColor.animate().alpha(1f).setDuration(220).start();
         if (app == null) {
-            heroColor.setBackgroundColor(0xFF2A3140);
-            heroArt.setImageDrawable(null);
             heroTitle.setText("Add an app");
             heroHint.setText("Press OK to choose from your apps");
-            return;
-        }
-        heroColor.setBackgroundColor(Look.darken(app.tint, 0.15f));
-        if (app.banner != null) {
-            heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            heroArt.setPadding(0, 0, 0, 0);
-            heroArt.setImageDrawable(app.banner);
         } else {
-            heroArt.setScaleType(ImageView.ScaleType.FIT_END);
-            heroArt.setPadding(0, dp(60), dp(80), dp(60));
-            heroArt.setImageDrawable(app.icon);
+            heroTitle.setText(app.label);
+            heroHint.setText("OK to open  ·  Menu to move or remove");
         }
-        heroArt.setAlpha(0f);
-        heroArt.animate().alpha(app.banner != null ? 0.5f : 0.35f).setDuration(220).start();
-        heroTitle.setText(app.label);
-        heroHint.setText("Press OK to open  ·  Menu to move or remove");
     }
 
     private View settingsButton() {
@@ -385,7 +351,6 @@ public class HomeActivity extends Activity {
     private void render() {
         boolean settingsFocused = getCurrentFocus() == settingsButton;
         root.setBackgroundColor(Look.baseColor(this));
-        applyFades();
         row.removeAllViews();
         int tileW = dp(Look.spotlightTileWidth(this));
         int tileH = tileW * 9 / 16;

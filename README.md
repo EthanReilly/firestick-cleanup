@@ -15,7 +15,7 @@ Packages are turned off with `pm disable-user`, not deleted, so nothing is lost 
 
 ## The Home screen
 
-- **Spotlight layout:** the selected app fills the top of the screen with its artwork and name, and **My apps** (just the apps you choose) run in one row along the bottom. The last tile is a **+** for adding more. The clock and Settings button sit top right.
+- **Spotlight layout:** the selected app's name sits large across the top over a faint wash of its colour, and **My apps** (just the apps you choose) run in one row along the bottom. The last tile is a **+** for adding more. The clock and Settings button sit top right.
 - Press **Menu** on an app to move it or remove it.
 - **Settings** (the gear, or hold Home):
   - **Home screen:** tile size, app names, background, 12- or 24-hour clock.
