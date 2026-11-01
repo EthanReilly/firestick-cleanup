@@ -83,7 +83,22 @@ final class LocalShell {
                             Log.i(TAG, "shell: disconnected: " + reason);
                         }
                     });
-                    c.connect("127.0.0.1", 5555);
+                    // Some Fire OS versions refuse ADB from 127.0.0.1, so also try this device's Wi-Fi address.
+                    Exception last = null;
+                    boolean ok = false;
+                    for (String host : candidates()) {
+                        try {
+                            Log.i(TAG, "shell: connecting to " + host);
+                            c.connect(host, 5555);
+                            ok = true;
+                            break;
+                        } catch (Exception ex) {
+                            last = ex;
+                            Log.i(TAG, "shell: " + host + " failed: " + ex);
+                            c = new AdbClient(keys, c.listener());
+                        }
+                    }
+                    if (!ok) throw last != null ? last : new java.io.IOException("No address to connect to");
                     client = c;
                     SharedPreferences.Editor e = Apps.prefs(app).edit();
                     e.putBoolean(PREF, true).apply();
@@ -100,6 +115,25 @@ final class LocalShell {
                 }
             }
         }, "local-shell").start();
+    }
+
+    private static java.util.List<String> candidates() {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> ifs = java.net.NetworkInterface.getNetworkInterfaces();
+            while (ifs != null && ifs.hasMoreElements()) {
+                java.net.NetworkInterface ni = ifs.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                java.util.Enumeration<java.net.InetAddress> a = ni.getInetAddresses();
+                while (a.hasMoreElements()) {
+                    java.net.InetAddress x = a.nextElement();
+                    if (x instanceof java.net.Inet4Address && x.isSiteLocalAddress()) out.add(x.getHostAddress());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        out.add("127.0.0.1");
+        return out;
     }
 
     /** Opens this Home screen through the shell. */

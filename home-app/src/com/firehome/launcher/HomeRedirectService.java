@@ -5,7 +5,15 @@ import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.os.SystemClock;
 import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.graphics.Bitmap;
+import android.graphics.PixelFormat;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.ImageView;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -31,10 +39,25 @@ public class HomeRedirectService extends AccessibilityService {
     private final Set<String> homeClasses = new HashSet<String>();
     private long lastRedirect;
     private volatile ServerSocket server;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    static volatile HomeRedirectService instance;
+    /** Picture of the Home screen, taken when it was last left; shown instantly while Fire OS holds it back. */
+    static volatile Bitmap snapshot;
+    private View cover;
+
+    /** Set when Fire TV Settings is opened or shown, so its screens aren't mistaken for Amazon's home. */
+    static volatile long settingsSeenAt;
+
+    /** Words on Fire TV's Settings screen (it is shown by Amazon's home app, so its window looks the same). */
+    private static final String[] SETTINGS_WORDS = {"My Fire TV", "Display & Sounds", "Controllers & Bluetooth",
+            "Equipment Control", "Accessibility", "Network", "Applications", "Notifications", "Live TV", "Privacy",
+            "Preferences", "Alexa"};
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        instance = this;
         homeClasses.clear();
         try {
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
@@ -88,6 +111,7 @@ public class HomeRedirectService extends AccessibilityService {
             OutputStream out = s.getOutputStream();
             if (line != null && line.trim().equalsIgnoreCase("HOME")) {
                 lastRedirect = SystemClock.uptimeMillis();
+                settingsSeenAt = 0;
                 Intent i = new Intent(this, HomeActivity.class);
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
@@ -113,6 +137,8 @@ public class HomeRedirectService extends AccessibilityService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        hideCover();
+        if (instance == this) instance = null;
         ServerSocket ss = server;
         server = null;
         if (ss != null) {
@@ -126,27 +152,123 @@ public class HomeRedirectService extends AccessibilityService {
         CharSequence p = e.getPackageName();
         if (p == null) return;
         String pkg = p.toString();
+        if (pkg.startsWith("com.amazon.tv.settings")) settingsSeenAt = SystemClock.uptimeMillis();
         if (!AMAZON_LAUNCHER.equals(pkg) && !AMAZON_HOME_STARTER.equals(pkg)) return;
         CharSequence c = e.getClassName();
         String cls = c == null ? "" : c.toString();
         boolean isHome = homeClasses.contains(cls)
                 || cls.contains("HomeActivity")
+                || cls.contains("SettingsActivity")
                 || (AMAZON_HOME_STARTER.equals(pkg) && cls.endsWith("Activity"));
         if (!isHome) return;
+        if (cls.contains("SettingsActivity")) {
+            settingsSeenAt = SystemClock.uptimeMillis();
+            Log.i(LocalShell.TAG, "Fire TV Settings opened, not redirecting");
+            return;
+        }
         long now = SystemClock.uptimeMillis();
         if (now - lastRedirect < 500) return;
-        lastRedirect = now;
-        // Through the shell this opens at once; a normal app launch waits 5 s after a Home press.
-        boolean viaShell = LocalShell.openHome(this);
-        Log.i(LocalShell.TAG, "Amazon home appeared (" + cls + "), opening ours " + (viaShell ? "via shell" : "as app"));
-        if (viaShell) return;
-        Intent i = new Intent(this, HomeActivity.class);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        // Fire TV Settings is drawn by Amazon's home app: if Settings was in use recently, give the
+        // screen a moment to draw, then only redirect if it really is the home screen.
+        long delay = now - settingsSeenAt < 30 * 60 * 1000 ? 450 : 0;
+        handler.removeCallbacks(check);
+        handler.postDelayed(check, delay);
+    }
+
+    private final Runnable check = new Runnable() {
+        @Override
+        public void run() {
+            if (showingSettings()) {
+                settingsSeenAt = SystemClock.uptimeMillis();
+                Log.i(LocalShell.TAG, "Fire TV Settings on screen, not redirecting");
+                return;
+            }
+            lastRedirect = SystemClock.uptimeMillis();
+            settingsSeenAt = 0;
+            boolean viaShell = LocalShell.openHome(HomeRedirectService.this);
+            Log.i(LocalShell.TAG, "Amazon home on screen, opening ours " + (viaShell ? "via shell" : "as app"));
+            if (viaShell) return;
+            showCover(); // Fire OS may hold the real Home back for 5 s: show its picture meanwhile
+            Intent i = new Intent(HomeRedirectService.this, HomeActivity.class);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            try {
+                startActivity(i);
+            } catch (Exception ignored) {
+            }
+        }
+    };
+
+    private final Runnable hideCoverLater = new Runnable() {
+        @Override
+        public void run() {
+            hideCover();
+        }
+    };
+
+    private void showCover() {
+        if (cover != null) return;
         try {
-            startActivity(i);
+            WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+            ImageView v = new ImageView(this);
+            v.setScaleType(ImageView.ScaleType.FIT_XY);
+            Bitmap b = snapshot;
+            if (b != null) v.setImageBitmap(b);
+            v.setBackgroundColor(Look.baseColor(this));
+            v.setFocusable(true);
+            v.setFocusableInTouchMode(true);
+            v.setOnKeyListener(new View.OnKeyListener() {
+                @Override
+                public boolean onKey(View view, int code, android.view.KeyEvent e) {
+                    return true; // don't let presses reach Amazon's home underneath
+                }
+            });
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.OPAQUE);
+            wm.addView(v, lp);
+            v.requestFocus();
+            cover = v;
+            handler.removeCallbacks(hideCoverLater);
+            handler.postDelayed(hideCoverLater, 6500);
+            Log.i(LocalShell.TAG, "cover shown");
+        } catch (Exception e) {
+            Log.i(LocalShell.TAG, "cover failed: " + e);
+        }
+    }
+
+    /** Called when the real Home screen is showing. */
+    void hideCover() {
+        handler.removeCallbacks(hideCoverLater);
+        if (cover == null) return;
+        try {
+            ((WindowManager) getSystemService(WINDOW_SERVICE)).removeView(cover);
         } catch (Exception ignored) {
         }
+        cover = null;
+    }
+
+    /** True if Amazon's app is currently showing Fire TV Settings rather than its home screen. */
+    private boolean showingSettings() {
+        AccessibilityNodeInfo root;
+        try {
+            root = getRootInActiveWindow();
+        } catch (Exception e) {
+            return false;
+        }
+        if (root == null) return false;
+        int hits = 0;
+        for (String w : SETTINGS_WORDS) {
+            try {
+                List<AccessibilityNodeInfo> found = root.findAccessibilityNodeInfosByText(w);
+                if (found != null && !found.isEmpty()) hits++;
+            } catch (Exception ignored) {
+            }
+            if (hits >= 3) return true;
+        }
+        return false;
     }
 
     @Override

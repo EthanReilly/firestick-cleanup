@@ -15,7 +15,7 @@ Packages are turned off with `pm disable-user`, not deleted, so nothing is lost 
 
 ## The Home screen
 
-- A clock, a Settings button, and **My apps**: just the apps you choose. The last tile is a **+** for adding more.
+- **Spotlight layout:** the selected app fills the top of the screen with its artwork and name, and **My apps** (just the apps you choose) run in one row along the bottom. The last tile is a **+** for adding more. The clock and Settings button sit top right.
 - Press **Menu** on an app to move it or remove it.
 - **Settings** (the gear, or hold Home):
   - **Home screen:** tile size, app names, background, 12- or 24-hour clock.
@@ -52,6 +52,7 @@ It takes about a minute. Running it again is safe: it skips anything already don
 | `Undo Fire Stick Cleanup.bat` | Reverses every change |
 | `Test Home Button.bat` | Records a Home button log for troubleshooting |
 | `Test Buttons.bat` | Records Home and volume button logs for troubleshooting |
+| `Diagnose.bat` | Checks the Home app, settings shortcuts and Fire Remote link |
 | `FireStickCleanup.ps1` | The clean-up script |
 | `FireHome.apk` | The ad-free Home screen app |
 | `home-app/` | Source code for the Home screen app |

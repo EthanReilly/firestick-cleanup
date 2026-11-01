@@ -26,7 +26,7 @@ import android.widget.ArrayAdapter;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
+import android.widget.HorizontalScrollView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
@@ -42,8 +42,6 @@ public class HomeActivity extends Activity {
 
     private FrameLayout root;
     private TextView clock, date, hint;
-    private LinearLayout grid;
-    private ScrollView gridScroll;
     private View settingsButton;
 
     private List<Apps.App> all = new ArrayList<Apps.App>();
@@ -97,7 +95,17 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        root.setBackground(Look.background(this)); // settings may have changed
+        HomeRedirectService r = HomeRedirectService.instance;
+        if (r != null) {
+            final HomeRedirectService rr = r;
+            ui.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    rr.hideCover();
+                }
+            }, 150);
+        }
+        root.setBackgroundColor(Look.baseColor(this)); // settings may have changed
         ui.removeCallbacks(tick);
         tick.run();
         load();
@@ -107,6 +115,22 @@ public class HomeActivity extends Activity {
     protected void onPause() {
         super.onPause();
         ui.removeCallbacks(tick);
+        takeSnapshot();
+    }
+
+    /** Keeps a half-size picture of this screen for the instant cover shown after a Home press. */
+    private void takeSnapshot() {
+        try {
+            int w = root.getWidth(), h = root.getHeight();
+            if (w == 0 || h == 0) return;
+            android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(w / 2, h / 2,
+                    android.graphics.Bitmap.Config.RGB_565);
+            android.graphics.Canvas c = new android.graphics.Canvas(b);
+            c.scale(0.5f, 0.5f);
+            root.draw(c);
+            HomeRedirectService.snapshot = b;
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -123,64 +147,151 @@ public class HomeActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        gridScroll.smoothScrollTo(0, 0);
+        rowScroll.smoothScrollTo(0, 0);
         View first = tileAt(0);
         if (first != null) first.requestFocus();
     }
 
-    // ------------------------------------------------------------------ layout
+    // ------------------------------------------------------------------ layout (Spotlight)
+
+    private FrameLayout hero;
+    private View heroColor;
+    private ImageView heroArt;
+    private View heroFadeDown, heroFadeLeft;
+    private TextView heroTitle, heroHint;
+    private HorizontalScrollView rowScroll;
+    private LinearLayout row;
 
     private View buildUi() {
         root = new FrameLayout(this);
-        root.setBackground(Look.background(this));
+        root.setBackgroundColor(Look.baseColor(this));
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+        int heroH = (int) (screenH * 0.58f);
 
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(0, dp(26), 0, 0);
-        root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        // Spotlight: the selected app fills the top of the screen.
+        hero = new FrameLayout(this);
+        heroColor = new View(this);
+        hero.addView(heroColor, new FrameLayout.LayoutParams(-1, -1));
+        heroArt = new ImageView(this);
+        heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        hero.addView(heroArt, new FrameLayout.LayoutParams(-1, -1));
+        heroFadeLeft = new View(this);
+        hero.addView(heroFadeLeft, new FrameLayout.LayoutParams((int) (getResources().getDisplayMetrics().widthPixels * 0.6f), -1));
+        heroFadeDown = new View(this);
+        hero.addView(heroFadeDown, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(hero, new FrameLayout.LayoutParams(-1, heroH));
+        applyFades();
 
-        // Header: clock on the left, Settings on the right.
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
+        // Clock, date and Settings (top right).
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setClipChildren(false);
+        top.setPadding(dp(8), dp(8), dp(8), dp(8));
         LinearLayout times = new LinearLayout(this);
         times.setOrientation(LinearLayout.VERTICAL);
-        clock = Look.text(this, 44, Color.WHITE, "sans-serif-light", Typeface.NORMAL);
-        date = Look.text(this, 15, 0xFFAEB6C2, "sans-serif", Typeface.NORMAL);
+        times.setGravity(Gravity.END);
+        clock = Look.text(this, 30, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
+        clock.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+        date = Look.text(this, 14, 0xFFE6E9EE, "sans-serif", Typeface.NORMAL);
+        date.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
         times.addView(clock);
         times.addView(date);
-        header.addView(times, new LinearLayout.LayoutParams(0, -2, 1f));
+        top.addView(times);
         settingsButton = settingsButton();
-        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(62), dp(62)));
-        header.setPadding(dp(56), dp(8), dp(56), dp(8));
-        header.setClipChildren(false);
-        col.addView(header);
+        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(dp(58), dp(58));
+        glp.leftMargin = dp(16);
+        top.addView(settingsButton, glp);
+        FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        tp.topMargin = dp(22);
+        tp.rightMargin = dp(48);
+        root.addView(top, tp);
 
-        TextView title = Look.text(this, 15, 0xFF8C95A3, "sans-serif-medium", Typeface.BOLD);
-        title.setText("MY APPS");
-        title.setLetterSpacing(0.14f);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
-        tlp.topMargin = dp(22);
-        tlp.leftMargin = dp(56);
-        col.addView(title, tlp);
+        // Selected app's name.
+        LinearLayout titleBox = new LinearLayout(this);
+        titleBox.setOrientation(LinearLayout.VERTICAL);
+        TextView label = Look.text(this, 14, 0xFFE6E9EE, "sans-serif-medium", Typeface.BOLD);
+        label.setText("SELECTED");
+        label.setLetterSpacing(0.14f);
+        label.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+        heroTitle = Look.text(this, 56, Color.WHITE, "sans-serif-black", Typeface.BOLD);
+        heroTitle.setSingleLine(true);
+        heroTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        heroTitle.setShadowLayer(dp(10), 0, dp(2), 0x99000000);
+        heroHint = Look.text(this, 16, 0xFFE6E9EE, "sans-serif", Typeface.NORMAL);
+        heroHint.setShadowLayer(dp(6), 0, dp(1), 0x99000000);
+        titleBox.addView(label);
+        titleBox.addView(heroTitle);
+        titleBox.addView(heroHint);
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP | Gravity.START);
+        hp.leftMargin = dp(56);
+        hp.rightMargin = dp(56);
+        hp.topMargin = heroH - dp(150);
+        root.addView(titleBox, hp);
 
-        gridScroll = new ScrollView(this);
-        gridScroll.setVerticalScrollBarEnabled(false);
-        gridScroll.setClipToPadding(false);
-        gridScroll.setClipChildren(false);
-        gridScroll.setPadding(dp(56), dp(22), dp(56), dp(40));
-        grid = new LinearLayout(this);
-        grid.setOrientation(LinearLayout.VERTICAL);
-        grid.setClipChildren(false);
-        gridScroll.addView(grid, new ViewGroup.LayoutParams(-1, -2));
-        col.addView(gridScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        // My apps: one row along the bottom.
+        TextView appsLabel = Look.text(this, 14, 0xFF9AA3AF, "sans-serif-medium", Typeface.BOLD);
+        appsLabel.setText("MY APPS");
+        appsLabel.setLetterSpacing(0.14f);
+        FrameLayout.LayoutParams alp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+        alp.leftMargin = dp(56);
+        alp.topMargin = heroH + dp(4);
+        root.addView(appsLabel, alp);
 
-        hint = Look.text(this, 13, 0xFF6F7886, "sans-serif", Typeface.NORMAL);
+        rowScroll = new HorizontalScrollView(this);
+        rowScroll.setHorizontalScrollBarEnabled(false);
+        rowScroll.setClipToPadding(false);
+        rowScroll.setClipChildren(false);
+        rowScroll.setPadding(dp(56), dp(22), dp(56), dp(22));
+        row = new LinearLayout(this);
+        row.setClipChildren(false);
+        row.setGravity(Gravity.TOP);
+        rowScroll.addView(row, new ViewGroup.LayoutParams(-2, -2));
+        FrameLayout.LayoutParams rlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        rlp.topMargin = heroH + dp(14);
+        root.addView(rowScroll, rlp);
+
+        hint = Look.text(this, 13, 0xFF8C95A3, "sans-serif", Typeface.NORMAL);
         hint.setText("Press Menu on an app to move or remove it");
         hint.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams hlp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
-        hlp.bottomMargin = dp(16);
+        hlp.bottomMargin = dp(14);
         root.addView(hint, hlp);
         return root;
+    }
+
+    private void applyFades() {
+        int base = Look.baseColor(this);
+        int clear = base & 0x00FFFFFF;
+        heroFadeDown.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{clear, (base & 0x00FFFFFF) | 0x99000000, base}));
+        heroFadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{(base & 0x00FFFFFF) | 0xAA000000, (base & 0x00FFFFFF) | 0x44000000, clear}));
+    }
+
+    /** Shows the selected app in the Spotlight area. app == null: the "Add app" tile. */
+    private void spotlight(Apps.App app) {
+        heroArt.animate().cancel();
+        if (app == null) {
+            heroColor.setBackgroundColor(0xFF2A3140);
+            heroArt.setImageDrawable(null);
+            heroTitle.setText("Add an app");
+            heroHint.setText("Press OK to choose from your apps");
+            return;
+        }
+        heroColor.setBackgroundColor(Look.darken(app.tint, 0.15f));
+        if (app.banner != null) {
+            heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            heroArt.setPadding(0, 0, 0, 0);
+            heroArt.setImageDrawable(app.banner);
+        } else {
+            heroArt.setScaleType(ImageView.ScaleType.FIT_END);
+            heroArt.setPadding(0, dp(60), dp(80), dp(60));
+            heroArt.setImageDrawable(app.icon);
+        }
+        heroArt.setAlpha(0f);
+        heroArt.animate().alpha(app.banner != null ? 0.5f : 0.35f).setDuration(220).start();
+        heroTitle.setText(app.label);
+        heroHint.setText("Press OK to open  ·  Menu to move or remove");
     }
 
     private View settingsButton() {
@@ -237,12 +348,7 @@ public class HomeActivity extends Activity {
             startActivity(new Intent(this, SettingsActivity.class));
             return;
         }
-        try {
-            startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (Exception e) {
-            startActivity(new Intent(this, SettingsActivity.class));
-        }
+        SettingsActivity.openFireTvSettings(this, null, android.provider.Settings.ACTION_SETTINGS);
     }
 
     // ------------------------------------------------------------------ data
@@ -274,41 +380,33 @@ public class HomeActivity extends Activity {
         return out;
     }
 
-    // ------------------------------------------------------------------ grid
+    // ------------------------------------------------------------------ row
 
     private void render() {
-        View current = getCurrentFocus();
-        boolean settingsFocused = current == settingsButton;
-        grid.removeAllViews();
-        int cols = Look.columns(this);
-        int width = getResources().getDisplayMetrics().widthPixels - dp(112);
-        int gap = dp(cols >= 6 ? 18 : 24);
-        int tileW = (width - gap * (cols - 1)) / cols;
+        boolean settingsFocused = getCurrentFocus() == settingsButton;
+        root.setBackgroundColor(Look.baseColor(this));
+        applyFades();
+        row.removeAllViews();
+        int tileW = dp(Look.spotlightTileWidth(this));
         int tileH = tileW * 9 / 16;
-        boolean alwaysNames = Apps.prefs(this).getBoolean("names", false);
+        boolean names = Apps.prefs(this).getBoolean("names", false);
 
         List<Apps.App> apps = pinnedApps();
-        List<View> tiles = new ArrayList<View>();
-        for (Apps.App a : apps) tiles.add(appTile(a, tileW, tileH, alwaysNames));
-        tiles.add(addTile(tileW, tileH));
-
-        LinearLayout row = null;
         View toFocus = null;
-        for (int i = 0; i < tiles.size(); i++) {
-            if (i % cols == 0) {
-                row = new LinearLayout(this);
-                row.setClipChildren(false);
-                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
-                rlp.bottomMargin = dp(alwaysNames ? 22 : 34);
-                grid.addView(row, rlp);
-            }
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(tileW, -2);
-            if (i % cols != 0) lp.leftMargin = gap;
-            row.addView(tiles.get(i), lp);
-            if (i < apps.size() && apps.get(i).pkg.equals(focusPkg)) toFocus = tiles.get(i);
+        for (int i = 0; i < apps.size(); i++) {
+            View t = appTile(apps.get(i), tileW, tileH, names);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            if (i > 0) lp.leftMargin = dp(14);
+            row.addView(t, lp);
+            if (apps.get(i).pkg.equals(focusPkg)) toFocus = t;
         }
-        if ("__add".equals(focusPkg)) toFocus = tiles.get(tiles.size() - 1);
-        if (toFocus == null) toFocus = tiles.get(0);
+        View add = addTile(tileH, tileH);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        if (!apps.isEmpty()) lp.leftMargin = dp(14);
+        row.addView(add, lp);
+        if ("__add".equals(focusPkg) || toFocus == null && apps.isEmpty()) toFocus = add;
+        if (toFocus == null) toFocus = row.getChildAt(0);
+        hint.setVisibility(apps.isEmpty() ? View.INVISIBLE : View.VISIBLE);
         if (!settingsFocused) {
             final View f = toFocus;
             f.post(new Runnable() {
@@ -318,40 +416,34 @@ public class HomeActivity extends Activity {
                 }
             });
         }
-        hint.setVisibility(apps.isEmpty() ? View.INVISIBLE : View.VISIBLE);
+        if (apps.isEmpty()) spotlight(null);
     }
 
     private View tileAt(int index) {
-        int cols = Look.columns(this);
-        int r = index / cols, c = index % cols;
-        if (grid.getChildCount() <= r) return null;
-        ViewGroup row = (ViewGroup) grid.getChildAt(r);
-        return row.getChildCount() > c ? row.getChildAt(c) : null;
+        return row.getChildCount() > index ? row.getChildAt(index) : null;
     }
 
-    private View appTile(final Apps.App app, int w, int h, boolean alwaysName) {
+    private View appTile(final Apps.App app, int w, int h, boolean showName) {
         FrameLayout card = card(w, h, app.tint);
+        ImageView img = new ImageView(this);
         if (app.banner != null) {
-            ImageView img = new ImageView(this);
             img.setScaleType(ImageView.ScaleType.CENTER_CROP);
             img.setImageDrawable(app.banner);
             card.addView(img, new FrameLayout.LayoutParams(-1, -1));
         } else {
-            ImageView img = new ImageView(this);
             img.setScaleType(ImageView.ScaleType.FIT_CENTER);
             img.setImageDrawable(app.icon);
             card.addView(img, new FrameLayout.LayoutParams(h * 3 / 5, h * 3 / 5, Gravity.CENTER));
         }
-        addSheen(card, h);
-        final View tile = wrap(card, app.label, w, h, alwaysName);
+        final View tile = wrap(card, app.label, w, h, showName);
         tile.setContentDescription(app.label);
         tile.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean has) {
-                animateFocus(v, has, alwaysName);
+                animateFocus(v, has);
                 if (has) {
                     focusPkg = app.pkg;
-                    keepVisible(v);
+                    spotlight(app);
                 }
             }
         });
@@ -383,21 +475,21 @@ public class HomeActivity extends Activity {
 
     private View addTile(int w, int h) {
         FrameLayout card = new FrameLayout(this);
-        final GradientDrawable bg = Look.rounded(this, 0x18FFFFFF, 14);
-        bg.setStroke(dp(2), 0x40FFFFFF, dp(8), dp(6));
+        final GradientDrawable bg = Look.rounded(this, 0x14FFFFFF, 14);
+        bg.setStroke(dp(2), 0x59FFFFFF, dp(8), dp(6));
         card.setBackground(bg);
-        Glyph plus = new Glyph(this, Glyph.PLUS, 0xCCFFFFFF);
+        Glyph plus = new Glyph(this, Glyph.PLUS, 0xFFE6E9EE);
         card.addView(plus, new FrameLayout.LayoutParams(h / 3, h / 3, Gravity.CENTER));
-        final View tile = wrap(card, "Add app", w, h, true);
+        final View tile = wrap(card, "Add app", w, h, false);
         tile.setContentDescription("Add an app");
         tile.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean has) {
-                animateFocus(v, has, true);
-                bg.setColor(has ? 0x40FFFFFF : 0x18FFFFFF);
+                animateFocus(v, has);
+                bg.setColor(has ? 0x33FFFFFF : 0x14FFFFFF);
                 if (has) {
                     focusPkg = "__add";
-                    keepVisible(v);
+                    spotlight(null);
                 }
             }
         });
@@ -425,57 +517,57 @@ public class HomeActivity extends Activity {
         return card;
     }
 
-    private void addSheen(FrameLayout card, int h) {
-        View sheen = new View(this);
-        sheen.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x22FFFFFF, 0x00FFFFFF}));
-        card.addView(sheen, new FrameLayout.LayoutParams(-1, h / 2));
-    }
-
-    /** Card plus its name underneath. Tag 0 = card, tag 1 = label (for animation). */
-    private View wrap(FrameLayout card, String name, int w, int h, boolean showName) {
+    /**
+     * Tile = a ring (white outline when selected) around the card, plus an optional name below.
+     * Tag holds {ring, label}.
+     */
+    private View wrap(View card, String name, int w, int h, boolean showName) {
         LinearLayout tile = new LinearLayout(this);
         tile.setOrientation(LinearLayout.VERTICAL);
         tile.setClipChildren(false);
         tile.setFocusable(true);
         tile.setFocusableInTouchMode(true);
         Look.noSystemFocusHighlight(tile);
-        tile.addView(card, new LinearLayout.LayoutParams(w, h));
-        TextView label = Look.text(this, 15, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
+        FrameLayout ring = new FrameLayout(this);
+        int pad = dp(5);
+        ring.setPadding(pad, pad, pad, pad);
+        ring.addView(card, new FrameLayout.LayoutParams(w, h));
+        tile.addView(ring, new LinearLayout.LayoutParams(w + pad * 2, h + pad * 2));
+        TextView label = Look.text(this, 14, Color.WHITE, "sans-serif-medium", Typeface.NORMAL);
         label.setText(name);
         label.setSingleLine(true);
         label.setEllipsize(android.text.TextUtils.TruncateAt.END);
         label.setGravity(Gravity.CENTER);
-        label.setAlpha(showName ? 0.75f : 0f);
-        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(-1, -2);
-        llp.topMargin = dp(10);
+        label.setVisibility(showName ? View.VISIBLE : View.GONE);
+        label.setAlpha(0.8f);
+        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(w + pad * 2, -2);
+        llp.topMargin = dp(6);
         tile.addView(label, llp);
-        tile.setTag(new View[]{card, label});
+        tile.setTag(new View[]{ring, label});
         return tile;
     }
 
-    private void animateFocus(View tile, boolean has, boolean alwaysName) {
+    private void animateFocus(View tile, boolean has) {
         View[] parts = (View[]) tile.getTag();
-        float s = has ? 1.1f : 1f;
+        View ring = parts[0];
+        if (has) {
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadius(dp(18));
+            g.setStroke(dp(3), Color.WHITE);
+            ring.setBackground(g);
+        } else {
+            ring.setBackground(null);
+        }
+        float s = has ? 1.07f : 1f;
         AnimatorSet set = new AnimatorSet();
         set.playTogether(
-                ObjectAnimator.ofFloat(parts[0], "scaleX", s),
-                ObjectAnimator.ofFloat(parts[0], "scaleY", s),
-                ObjectAnimator.ofFloat(parts[0], "translationZ", has ? dp(16) : 0),
-                ObjectAnimator.ofFloat(parts[1], "alpha", has ? 1f : (alwaysName ? 0.75f : 0f)),
-                ObjectAnimator.ofFloat(parts[1], "translationY", has ? dp(8) : 0));
-        set.setDuration(160);
+                ObjectAnimator.ofFloat(ring, "scaleX", s),
+                ObjectAnimator.ofFloat(ring, "scaleY", s),
+                ObjectAnimator.ofFloat(ring, "translationZ", has ? dp(14) : 0),
+                ObjectAnimator.ofFloat(parts[1], "alpha", has ? 1f : 0.8f));
+        set.setDuration(150);
         set.setInterpolator(new DecelerateInterpolator());
         set.start();
-    }
-
-    private void keepVisible(View tile) {
-        View row = (View) tile.getParent();
-        int top = row.getTop() - dp(18);
-        int bottom = row.getBottom() + dp(30);
-        int y = gridScroll.getScrollY();
-        if (top < y) gridScroll.smoothScrollTo(0, Math.max(0, top));
-        else if (bottom > y + gridScroll.getHeight()) gridScroll.smoothScrollTo(0, bottom - gridScroll.getHeight());
     }
 
     // ------------------------------------------------------------------ editing

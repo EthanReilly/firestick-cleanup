@@ -244,12 +244,12 @@ public class SettingsActivity extends Activity {
 
         public void build(List<Row> rows) {
             rows.add(new Row("Home screen", null, true, open(homePage)));
-            rows.add(new Row("Network", localIp(), true, system(Settings.ACTION_WIFI_SETTINGS)));
+            rows.add(new Row("Network", localIp(), true, system(AMZ + "/.tv.network.NetworkActivity", Settings.ACTION_WIFI_SETTINGS)));
             rows.add(new Row("Display & Sounds", null, true,
-                    system("android.settings.DISPLAY_SETTINGS", "android.settings.SOUND_SETTINGS")));
+                    system(AMZ + "/.tv.display_sounds.DisplayAndSoundsActivity", "android.settings.DISPLAY_SETTINGS")));
             rows.add(new Row("Applications", null, true,
-                    system(Settings.ACTION_APPLICATION_SETTINGS, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)));
-            rows.add(new Row("Remotes & Bluetooth", null, true, system(Settings.ACTION_BLUETOOTH_SETTINGS)));
+                    system(AMZ + "/.tv.applications.ApplicationsActivity", Settings.ACTION_APPLICATION_SETTINGS)));
+            rows.add(new Row("Remotes & Bluetooth", null, true, system(AMZ + "/.tv.controllers_bluetooth_devices.ControllersAndBluetoothActivity", "android.settings.CONTROLLERS_SETTINGS", Settings.ACTION_BLUETOOTH_SETTINGS)));
             rows.add(new Row("Ad-blocking", adBlockOn() ? "On" : "Off", false, new Runnable() {
                 public void run() {
                     toggleAdBlock();
@@ -266,7 +266,7 @@ public class SettingsActivity extends Activity {
                 }
             }));
             rows.add(new Row("About", null, true, open(aboutPage)));
-            rows.add(new Row("All Fire TV settings", null, true, system(Settings.ACTION_SETTINGS)));
+            rows.add(new Row("All Fire TV settings", null, true, system(null, Settings.ACTION_SETTINGS)));
         }
     };
 
@@ -403,30 +403,47 @@ public class SettingsActivity extends Activity {
         };
     }
 
-    /** Opens a Fire TV system settings screen, trying each action in turn, then the main Settings. */
-    private Runnable system(final String... actions) {
+    private static final String AMZ = "com.amazon.tv.settings.v2";
+
+    /** Opens a Fire TV settings screen: an exact Amazon screen first, else the action, else Fire TV Settings. */
+    private Runnable system(final String component, final String... actions) {
         return new Runnable() {
             public void run() {
-                PackageManager pm = getPackageManager();
-                for (String a : actions) {
-                    Intent i = new Intent(a).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if (i.resolveActivity(pm) != null) {
-                        try {
-                            startActivity(i);
-                            return;
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-                Intent i = new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                try {
-                    startActivity(i);
-                } catch (Exception e) {
-                    Intent li = pm.getLeanbackLaunchIntentForPackage("com.amazon.tv.settings.v2");
-                    if (li != null) startActivity(li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                }
+                openFireTvSettings(SettingsActivity.this, component, actions);
             }
         };
+    }
+
+    static void openFireTvSettings(android.content.Context c, String component, String... actions) {
+        HomeRedirectService.settingsSeenAt = android.os.SystemClock.uptimeMillis();
+        PackageManager pm = c.getPackageManager();
+        if (component != null) {
+            try {
+                Intent i = new Intent(Intent.ACTION_MAIN)
+                        .setComponent(android.content.ComponentName.unflattenFromString(component))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                c.startActivity(i);
+                return;
+            } catch (Exception e) {
+                android.util.Log.i(LocalShell.TAG, "couldn't open " + component + ": " + e);
+            }
+        }
+        for (String a : actions) {
+            Intent i = new Intent(a).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (i.resolveActivity(pm) != null) {
+                try {
+                    c.startActivity(i);
+                    return;
+                } catch (Exception e) {
+                    android.util.Log.i(LocalShell.TAG, "couldn't open " + a + ": " + e);
+                }
+            }
+        }
+        try {
+            c.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            android.util.Log.i(LocalShell.TAG, "couldn't open Fire TV Settings: " + e);
+        }
     }
 
     private void addApp(List<Apps.App> all, final List<String> pinned) {

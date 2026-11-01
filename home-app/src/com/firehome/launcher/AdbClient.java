@@ -67,6 +67,10 @@ final class AdbClient {
         this.listener = listener;
     }
 
+    Listener listener() {
+        return listener;
+    }
+
     boolean isConnected() {
         return connected;
     }

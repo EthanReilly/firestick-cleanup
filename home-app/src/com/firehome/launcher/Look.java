@@ -31,6 +31,20 @@ final class Look {
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR, BACKGROUNDS[i]);
     }
 
+    /** Solid colour of the chosen background (Spotlight fades into it). */
+    static int baseColor(Context c) {
+        int i = Apps.prefs(c).getInt("background", 0);
+        if (i < 0 || i >= BACKGROUNDS.length) i = 0;
+        return BACKGROUNDS[i][0];
+    }
+
+    /** Spotlight tile width in dp for the Tile size setting (Large / Medium / Small). */
+    static int spotlightTileWidth(Context c) {
+        int i = Apps.prefs(c).getInt("size", 1);
+        int[] w = {236, 196, 164};
+        return w[Math.max(0, Math.min(w.length - 1, i))];
+    }
+
     static int columns(Context c) {
         int i = Apps.prefs(c).getInt("size", 1);
         return SIZE_COLUMNS[Math.max(0, Math.min(SIZE_COLUMNS.length - 1, i))];
